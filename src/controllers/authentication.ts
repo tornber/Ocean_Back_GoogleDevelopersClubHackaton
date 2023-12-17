@@ -5,8 +5,8 @@ const admin = require('firebase-admin');
 
 export const register = async (req: express.Request, res: express.Response) => {
     try {
-        const { name,surname,email,username, password } = req.body;
-        if(!name || !surname || !email || !username || !password) {
+        const { name,lastname,email,username, password } = req.body;
+        if(!name || !lastname || !email || !username || !password) {
             return res.status(400).json({message: 'missing fields'})
         }
 

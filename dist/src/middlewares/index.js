@@ -7,13 +7,15 @@ const isAuthenticated = async (req, res, next) => {
     try {
         const sessionCookie = req.cookies['sessionId'];
         if (sessionCookie === undefined) {
-            return res.sendStatus(401);
+            return res.sendStatus(401).end();
         }
-        const existingUser = await admin.firestore().collection('users').where('auth.sessionId', '==', sessionCookie).get();
-        if (existingUser.empty) {
-            return res.sendStatus(401);
+        const existingUserRef = await admin.firestore().collection('users').where('auth.sessionId', '==', sessionCookie);
+        const existingUserDoc = await existingUserRef.get();
+        if (existingUserDoc.empty) {
+            return res.sendStatus(401).end();
         }
-        (0, lodash_1.merge)(req, { identity: existingUser });
+        const existingUser = existingUserDoc.docs[0].data();
+        (0, lodash_1.merge)(req, { identity: { ...existingUser, id: existingUserDoc.docs[0].id } });
         next();
     }
     catch (error) {
@@ -24,7 +26,7 @@ const isAuthenticated = async (req, res, next) => {
 exports.isAuthenticated = isAuthenticated;
 const isOwnerOrAdmin = async (req, res, next) => {
     try {
-        const existingUser = (0, lodash_1.get)(req, 'identity.docs[0].data()') || undefined;
+        const existingUser = (0, lodash_1.get)(req, 'identity') || undefined;
         if (existingUser === undefined) {
             return res.status(401).json({ message: 'unauthorized' });
         }
@@ -37,7 +39,6 @@ const isOwnerOrAdmin = async (req, res, next) => {
         else {
             return res.sendStatus(403);
         }
-        next();
     }
     catch (error) {
         console.log(error);

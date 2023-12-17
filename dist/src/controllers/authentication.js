@@ -5,8 +5,8 @@ const helpers_1 = require("../helpers");
 const admin = require('firebase-admin');
 const register = async (req, res) => {
     try {
-        const { name, surname, email, username, password } = req.body;
-        if (!name || !surname || !email || !username || !password) {
+        const { name, lastname, email, username, password } = req.body;
+        if (!name || !lastname || !email || !username || !password) {
             return res.status(400).json({ message: 'missing fields' });
         }
         const existingUser = await admin.firestore().collection('users').where('email', '==', email).get();
@@ -14,8 +14,10 @@ const register = async (req, res) => {
             return res.status(400).json({ message: 'user already exists' });
         }
         const salt = process.env.SECRET;
-        const user = await admin.firestore().collection('users').add({ ...req.body, auth: { password: (0, helpers_1.authentication)(salt, password), sessionId: (0, helpers_1.random)() } });
-        return res.status(200).json({ message: 'user created', user });
+        const hashedPassword = (0, helpers_1.authentication)(salt, password);
+        const newUserRef = await admin.firestore().collection('users').add({ ...req.body, auth: { password: hashedPassword, sessionId: (0, helpers_1.random)() } });
+        const userDoc = await newUserRef.get();
+        return res.status(200).json({ message: 'user created', user: userDoc.data(), id: userDoc.id });
     }
     catch (error) {
         console.log(error.message);
@@ -24,22 +26,28 @@ const register = async (req, res) => {
 };
 exports.register = register;
 const login = async (req, res) => {
-    const [email, password] = req.body;
+    const { email, password } = req.body;
     if (!email || !password) {
-        res.status(400).json({ message: 'missing fields' });
+        console.log(req.body);
+        return res.status(400).json({ message: 'missing fields or cant parse request body' });
     }
-    const user = await admin.firestore().collection('users').where('email', '==', email).limit(1).get();
-    if (user.empty) {
-        res.status(400).json({ message: 'user with that email not found' });
+    const newUserRef = await admin.firestore().collection('users').where('email', '==', email).limit(1);
+    const userDoc = await newUserRef.get();
+    if (userDoc.empty) {
+        return res.status(400).json({ message: 'user with that email not found' });
     }
+    const user = userDoc.docs[0].data();
+    const userId = userDoc.docs[0].id;
     const expectedHash = (0, helpers_1.authentication)(process.env.SECRET, password);
-    if (user.password !== expectedHash) {
-        res.status(400).json({ message: 'incorrect password' });
+    if (user.auth.password !== expectedHash) {
+        console.log(expectedHash, user.auth.password);
+        return res.status(400).json({ message: 'incorrect password' });
     }
-    const salt = process.env.SECRET;
-    await admin.firestore().collection('users').doc(user.id).update({ ...user, auth: { sessionId: (0, helpers_1.random)() } });
-    res.cookie('sessionId', user.auth.sessionId, { httpOnly: true, secure: true, domain: 'localhost', path: '/' });
-    return res.status(200).json(user).end();
+    const sessionId = (0, helpers_1.random)();
+    await admin.firestore().collection('users').doc(userId).update({ ...user, auth: { password: user.auth.password, sessionId } });
+    res.cookie('sessionId', sessionId, { httpOnly: true, secure: true, domain: 'localhost', path: '/' });
+    const psw = user.auth.password;
+    return res.status(200).json({ ...user, auth: { password: psw, sessionId }, id: userId });
 };
 exports.login = login;
 //# sourceMappingURL=authentication.js.map
