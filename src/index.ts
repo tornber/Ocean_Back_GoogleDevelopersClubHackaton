@@ -5,6 +5,7 @@ import bodyParser from 'body-parser';
 import compression from 'compression';
 import fileUpload from 'express-fileupload';
 import cors from 'cors';
+import mutler from 'multer';
 import dotenv from 'dotenv';
 import mongoose from 'mongoose';    
 dotenv.config()
@@ -16,8 +17,10 @@ import { isAuthenticated,isOwnerOrAdmin } from './middlewares'
 import { register,login } from './controllers/authentication';
 import { create } from 'lodash';
 import { createReport } from './controllers/reports';
+import multer from 'multer';
 const router = express.Router();
 const app = express()
+const upload = multer({storage: multer.memoryStorage()})
 
 
 
@@ -26,9 +29,8 @@ app.use(cors({
 }));
 app.use(compression());
 app.use(bodyParser.json());
-// app.use(bodyParser.urlencoded({ extended: false }));
 app.use(cookieParser());
-app.use(fileUpload())
+// app.use(fileUpload())
 
 mongoose.connect(process.env.MONGO_URI as string).then(() => console.log('connected to database')).catch((err) => console.log(err))
 
@@ -37,7 +39,7 @@ router.post('/auth/login',login)
 router.get('/users',isAuthenticated,getAllUsers)
 router.delete('/users/:id',isAuthenticated,isOwnerOrAdmin,deleteUser)
 router.patch('/users/:id',isAuthenticated,isOwnerOrAdmin,updatePassword)
-router.post('/reports',createReport) 
+router.post('/reports',upload.array("files"),createReport) 
 // router.post('/reports',uploadFiles) 
 app.use('/',router)
 app.get('/', (req, res) => {
